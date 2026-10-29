@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Veon — before and after</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Outfit:wght@360;500;640&display=swap" rel="stylesheet">
+  <style>
+    :root { color: #f6efe2; font-family: Outfit, sans-serif; background: #070605; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #070605; }
+    .deck { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+    header, footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 22px; }
+    header a, footer a { color: #e6b35c; text-decoration: none; letter-spacing: 0.14em; text-transform: uppercase; font-size: 12px; }
+    .count { color: #b5a89a; font-size: 13px; letter-spacing: 0.12em; }
+    .stage { position: relative; min-height: 0; }
+    .slide { display: none; height: 100%; padding: 8px 28px 18px; }
+    .slide.on { display: grid; align-content: center; gap: 16px; }
+    h1 { font-family: Cinzel, serif; font-weight: 700; font-size: clamp(40px, 6vw, 72px); margin: 0; letter-spacing: 0.08em; }
+    h2 { font-family: Cinzel, serif; font-weight: 600; font-size: clamp(22px, 3vw, 34px); margin: 0; }
+    p { margin: 0; color: #d9cbb8; line-height: 1.45; max-width: 68ch; }
+    .kicker { color: #e6b35c; letter-spacing: 0.2em; text-transform: uppercase; font-size: 12px; }
+    .split, .trio { display: grid; gap: 14px; min-height: 0; }
+    .split { grid-template-columns: 1fr 1fr; }
+    .trio { grid-template-columns: 1fr 1fr 1fr; }
+    figure { margin: 0; min-width: 0; }
+    figure img, figure video { width: 100%; height: min(58vh, 620px); object-fit: cover; background: #120e0c; display: block; }
+    figcaption { margin-top: 8px; color: #b5a89a; font-size: 13px; }
+    figcaption b { color: #f6efe2; font-weight: 640; }
+    ul { margin: 0; padding-left: 18px; columns: 2; max-width: 820px; }
+    li { margin: 0 0 8px; color: #d9cbb8; }
+    .wide img, .wide video { height: min(68vh, 720px); }
+    footer button {
+      background: transparent; color: #f6efe2; border: 1px solid rgba(230,179,92,0.45);
+      padding: 8px 14px; font: inherit; letter-spacing: 0.12em; text-transform: uppercase; font-size: 12px; cursor: pointer;
+    }
+    .dots { display: flex; gap: 6px; }
+    .dots button { width: 8px; height: 8px; padding: 0; border-radius: 99px; border: 0; background: #4a4036; }
+    .dots button.on { background: #e6b35c; }
+    @media (max-width: 800px) {
+      .split, .trio, ul { grid-template-columns: 1fr; columns: 1; }
+      figure img, figure video, .wide img, .wide video { height: 32vh; }
+      .slide { padding: 8px 14px 12px; overflow: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck">
+    <header>
+      <a href="./">Veon</a>
+      <div class="count" id="count"></div>
+    </header>
+    <div class="stage" id="stage"></div>
+    <footer>
+      <button type="button" id="prev">Back</button>
+      <div class="dots" id="dots"></div>
+      <button type="button" id="next">Next</button>
+    </footer>
+  </div>
+  <template id="slides">
+    <section class="slide">
+      <p class="kicker">Captured 28 Oct 2026</p>
+      <h1>VEON</h1>
+      <p>The same local-keyboard fighter, rebuilt. The slides put the original Attacks to the Max next to Veon: the menu, the roster, the match, the stages, and a real clip of a training round.</p>
+    </section>
+    <section class="slide">
+      <h2>The front door</h2>
+      <div class="split">
+        <figure>
+          <img src="show/before-title.jpg" alt="Original title screen, a purple page with the word PIDOR and mode buttons">
+          <figcaption><b>Before.</b> A flat purple menu. Versus, CPU, free-for-all, teams, and training.</figcaption>
+        </figure>
+        <figure>
+          <img src="show/veon-title.jpg" alt="Veon title screen with a gold wordmark, a moon, and mountain silhouettes">
+          <figcaption><b>After.</b> A night sky, a moon, and the same modes, plus online play.</figcaption>
+        </figure>
+      </div>
+    </section>
+    <section class="slide">
+      <h2>Choosing a fighter</h2>
+      <div class="split">
+        <figure>
+          <img src="show/before-select.jpg" alt="Original select screen with four color squares labeled R G Z M">
+          <figcaption><b>Before.</b> Four color tiles, three stages, and a list of move names.</figcaption>
+        </figure>
+        <figure>
+          <img src="show/veon-select.jpg" alt="Veon select screen with painted portraits of Rook and Gorvan and a grid of forty fighters">
+          <figcaption><b>After.</b> Painted portraits, a 40-fighter grid, and seven stages.</figcaption>
+        </figure>
+      </div>
+    </section>
+    <section class="slide">
+      <h2>The match</h2>
+      <div class="split">
+        <figure>
+          <img src="show/before-fight.jpg" alt="Original match with simple orange and blue shapes on a purple platform">
+          <figcaption><b>Before.</b> Flat shapes on a gradient, with a training readout in the corner.</figcaption>
+        </figure>
+        <figure>
+          <img src="show/veon-fight.jpg" alt="Veon match on Sky Citadel, Rook and Gorvan standing on a shaded stone stage under a moon">
+          <figcaption><b>After.</b> Sky Citadel. Shaded bodies, a stone hull, and stocks along the bottom.</figcaption>
+        </figure>
+      </div>
+    </section>
+    <section class="slide">
+      <h2>A training round</h2>
+      <figure class="wide">
+        <video src="show/veon-attacks.webm" muted playsinline loop controls></video>
+        <figcaption><b>Veon, Sky Citadel.</b> Rook walks in, throws light and heavy hits, a special, a jump, and a downward smash. Gorvan is the training dummy.</figcaption>
+      </figure>
+    </section>
+    <section class="slide">
+      <h2>The same round, closer</h2>
+      <figure class="wide">
+        <video src="show/veon-fight-clip.webm" muted playsinline loop controls></video>
+        <figcaption><b>Movement and swings.</b> A second clip from that match: the run, the swings, and the jump.</figcaption>
+      </figure>
+    </section>
+    <section class="slide">
+      <h2>Stages</h2>
+      <div class="trio">
+        <figure>
+          <img src="show/stage-keel.jpg" alt="Sealed Keel, a solid stage with no gap underneath, Rook and Gorvan on top">
+          <figcaption><b>Sealed Keel.</b> A solid hull. There is no path underneath.</figcaption>
+        </figure>
+        <figure>
+          <img src="show/stage-maw.jpg" alt="Cannon Maw, a red sky and a stage with cannons on both sides">
+          <figcaption><b>Cannon Maw.</b> Cannons sit on both lips of the stage.</figcaption>
+        </figure>
+        <figure>
+          <img src="show/stage-crust.jpg" alt="Lava Crust, an orange sky with lava under a broken platform">
+          <figcaption><b>Lava Crust.</b> The floor is open over the lava.</figcaption>
+        </figure>
+      </div>
+    </section>
+    <section class="slide">
+      <h2>In the air</h2>
+      <figure class="wide">
+        <img src="show/stage-forge.jpg" alt="Kite flying high above a night stage while Gorvan stands on the deck">
+        <figcaption><b>Kite.</b> Multiple jumps carry a fighter into the sky. The camera follows. The other six stages are Sky Citadel, Magma Forge, Neon Drift, and Gale Span, along with the three above.</figcaption>
+      </figure>
+    </section>
+    <section class="slide">
+      <p class="kicker">What a match contains now</p>
+      <h2>The rules on screen</h2>
+      <ul>
+        <li>Forty fighters, each with a different kit and a drawn body.</li>
+        <li>Tilts, aerials, and charged smashes, including a downward meteor.</li>
+        <li>Block, and a grab you can walk and jump with before the throw.</li>
+        <li>Counters, projectiles, and a layered swing on each attack.</li>
+        <li>Ledges only on the solid edges of the main stage, from outside.</li>
+        <li>The ceiling takes a stock only when a hit is still carrying you up.</li>
+        <li>A last-stock cinematic only when no direction, tech, or ledge would save them.</li>
+        <li>Online play for two people who both have the page open.</li>
+      </ul>
+    </section>
+    <section class="slide">
+      <h2>Hands on the keys</h2>
+      <div class="split">
+        <p><b>One player.</b> A and D, or the arrow keys, move. W or Up jumps. S or Down drops. C light, V heavy, B special. Shift blocks. G grabs. Up with B recovers.</p>
+        <p><b>Matches.</b> There is no second player on this keyboard. A friend joins through Online. Escape pauses. In training, escape leaves and R resets the dummy. M mutes.</p>
+      </div>
+      <p>Hold a direction with light for a tilt, or in the air for an aerial. Up or down with heavy is a smash. Back on the title screen to play.</p>
+    </section>
+  </template>
+  <script>
+    const slides = [...document.querySelector("#slides").content.children];
+    const stage = document.querySelector("#stage");
+    const dots = document.querySelector("#dots");
+    slides.forEach((slide, i) => {
+      stage.appendChild(slide);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-label", "Slide " + (i + 1));
+      b.addEventListener("click", () => show(i));
+      dots.appendChild(b);
+    });
+    let index = 0;
+    function show(n) {
+      index = (n + slides.length) % slides.length;
+      slides.forEach((slide, i) => {
+        slide.classList.toggle("on", i === index);
+        slide.querySelectorAll("video").forEach((video) => {
+          if (i === index) video.play().catch(() => {});
+          else { video.pause(); video.currentTime = 0; }
+        });
+      });
+      [...dots.children].forEach((dot, i) => dot.classList.toggle("on", i === index));
+      document.querySelector("#count").textContent = (index + 1) + " / " + slides.length;
+    }
+    document.querySelector("#prev").addEventListener("click", () => show(index - 1));
+    document.querySelector("#next").addEventListener("click", () => show(index + 1));
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); show(index + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); show(index - 1); }
+    });
+    show(0);
+  </script>
+</body>
+</html>
