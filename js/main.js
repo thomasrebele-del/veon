@@ -1,8 +1,8 @@
-import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=solo";
-import { drawMenuScene, drawPortrait } from "./render.js?v=fx";
-import { Game } from "./game.js?v=rank";
+import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
+import { drawMenuScene, drawPortrait } from "./render.js?v=sol";
+import { Game } from "./game.js?v=sol";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, eloDelta, readElo, writeElo } from "./net.js?v=rank";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=sol";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -175,9 +175,10 @@ function setupHtml() {
   const icons = CHARACTERS.map((c, index) => {
     const tokens = tokensAt[index].map((t) => `<span class="css-token ${t.ready ? "locked" : ""}" style="--token:${TOKEN[t.i % TOKEN.length]}">${t.label}</span>`).join("");
     const hot = state.hands.some((h) => h.index === index);
-    return `<button class="css-icon ${hot ? "hot" : ""}" style="--fighter:${c.color}" data-act="css" data-i="${index}" title="${c.name}">
-        <canvas class="icon-bust" width="160" height="120" data-id="${c.id}"></canvas>
-        <span class="css-tokens">${tokens}</span>
+    const sealed = c.id === "sol" && !rankOne();
+    return `<button class="css-icon ${hot ? "hot" : ""} ${sealed ? "sealed" : ""}" style="--fighter:${c.color}" data-act="css" data-i="${index}" title="${sealed ? "Rank #1" : c.name}">
+        <canvas class="icon-bust" width="160" height="120" data-id="${sealed ? "" : c.id}"></canvas>
+        <span class="css-tokens">${sealed ? "<span class=\"css-token\">#1</span>" : tokens}</span>
       </button>`;
   }).join("");
   const extras = state.slots.slice(2).map((_, k) => handCard(k + 2)).join("");
@@ -217,6 +218,7 @@ function moveHand(i, dc, dr) {
   const ny = (y + dr + rows) % rows;
   let index = ny * cols + nx;
   if (index >= CHARACTERS.length) index = nx;
+  if (CHARACTERS[index]?.id === "sol" && !rankOne()) return;
   hand.index = index;
   state.slots[i].charId = CHARACTERS[index].id;
   sfx("ui");
@@ -227,6 +229,7 @@ function confirmHand(i) {
   ensureHands();
   const hand = state.hands[i];
   if (!hand || hand.ready) return;
+  if (CHARACTERS[hand.index]?.id === "sol" && !rankOne()) return;
   hand.ready = true;
   state.slots[i].charId = CHARACTERS[hand.index].id;
   sfx("impact");
@@ -249,6 +252,7 @@ function resultsHtml() {
       <p class="eyebrow">Winner</p>
       <h2 class="winner">${names}</h2>
       ${r.elo ? `<p class="tag">${r.elo.delta >= 0 ? "+" : ""}${r.elo.delta} rating · now ${r.elo.after}</p>` : ""}
+      ${r.elo?.crowned ? `<p class="tag">Rank #1. Sol, the last fighter, is open.</p>` : ""}
       ${r.finisher ? `<p class="tag">Finished with ${r.finisher}</p>` : `<p class="tag">The void keeps the rest.</p>`}
       <div class="stats n${r.stats.length}">
         ${r.stats.map((s) => `<div class="panel stat" style="--fighter:${s.color}"><b>${s.name}</b><p>${s.label}</p><p>KOs ${s.kos}</p><p>Falls ${s.falls}</p><p>Damage ${s.dealt}%</p></div>`).join("")}
@@ -288,7 +292,7 @@ function onlineHtml() {
         <h2>Online</h2>
         <span></span>
       </div>
-      <p class="lobby-note">Your rating is <b>${readElo()}</b>. A rated match changes it when someone wins.</p>
+      <p class="lobby-note">Your rating is <b>${readElo()}</b>. Reach <b>${RANK_ONE}</b> and you are rank #1. That opens Sol.</p>
       <div class="modes">
         <button data-act="find"><strong>Find match</strong><span>Connects you to anyone who is online. No code. Rated.</span></button>
         <button data-act="host"><strong>Host match</strong><span>You get a code. Send it to the other player.</span></button>
@@ -352,7 +356,10 @@ function onlineHtml() {
         <h3>${mine.name}</h3>
         ${lobby.ranked ? `<p class="blurb">Rating ${readElo()}</p>` : ""}
         <div class="css-roster css-roster-online">
-          ${CHARACTERS.map((c) => `<button class="css-icon ${c.id === mine.id ? "hot" : ""}" style="--fighter:${c.color}" data-act="mychar" data-id="${c.id}" title="${c.name}"><canvas class="icon-bust" width="160" height="120" data-id="${c.id}"></canvas></button>`).join("")}
+          ${CHARACTERS.map((c) => {
+            const sealed = c.id === "sol" && !rankOne();
+            return `<button class="css-icon ${c.id === mine.id ? "hot" : ""} ${sealed ? "sealed" : ""}" style="--fighter:${c.color}" data-act="mychar" data-id="${c.id}" title="${sealed ? "Rank #1" : c.name}" ${sealed ? "disabled" : ""}><canvas class="icon-bust" width="160" height="120" data-id="${sealed ? "" : c.id}"></canvas></button>`;
+          }).join("")}
         </div>
       </article>
       <article class="card" style="--fighter:${theirs?.color || "#888"}">
@@ -527,7 +534,7 @@ function startFight() {
         const won = result.winnerSlots.includes(state.net.localSlot);
         const delta = eloDelta(mine, state.theirElo || 1000, won);
         const after = writeElo(mine + delta);
-        result.elo = { before: mine, delta: after - mine, after };
+        result.elo = { before: mine, delta: after - mine, after, crowned: after >= RANK_ONE && mine < RANK_ONE };
       }
       state.result = result;
       state.screen = "results";
@@ -595,6 +602,7 @@ ui.addEventListener("click", (e) => {
   } else if (act === "copy" && state.lobby?.code) {
     navigator.clipboard?.writeText(state.lobby.code).catch(() => {});
   } else if (act === "mychar") {
+    if (b.dataset.id === "sol" && !rankOne()) return;
     state.lobby.myChar = b.dataset.id;
     room?.send({ t: "pick", charId: state.lobby.myChar });
     render();
@@ -619,6 +627,7 @@ ui.addEventListener("click", (e) => {
     if (slot < 0) slot = state.hands.findIndex((hand) => !hand.ready);
     if (slot < 0) slot = 0;
     if (state.hands[slot].ready) return;
+    if (CHARACTERS[index]?.id === "sol" && !rankOne()) return;
     if (state.hands[slot].index === index) confirmHand(slot);
     else {
       state.hands[slot].index = index;
@@ -730,7 +739,7 @@ window.addEventListener("keydown", (e) => {
     closeTrailer();
   }
 }, true);
-fetch("show/veon-trailer.mp4?v=game")
+fetch("show/veon-trailer.mp4?v=clash2")
   .then((res) => res.blob())
   .then((blob) => {
     if (!trailerVideo || trailer?.classList.contains("gone")) return;

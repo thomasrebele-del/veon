@@ -1,4 +1,4 @@
-import { CHARACTERS, STAGES, hazardClock } from "./data.js?v=cast40";
+import { CHARACTERS, STAGES, hazardClock } from "./data.js?v=sol";
 import { INK, disk, limb, poly } from "./body.js?v=cast40";
 import { drawBrawler, drawHeavy, drawGrappler } from "./looks/brawlers.js";
 import { drawSpeed, drawTrick, drawDancer } from "./looks/agile.js";

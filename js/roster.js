@@ -756,4 +756,29 @@ export const MORE = [
       up: { lunge: { vx: 1, vy: -14 } },
     },
   }),
+  cast({
+    id: "sol", name: "SOL", archetype: "Last Light",
+    blurb: "The fighter past rank one. The moon answers when Sol moves.",
+    strengths: "A piercing shot, a meteor, a rising crown",
+    weaknesses: "Light. One clean hit sends Sol to the blast zone.",
+    color: "#fff6d2", accent: "#e6b35c", shape: "dancer",
+    skin: "#f8d8c8", bulk: 0.9, wear: "silk", hip: 0.16,
+    vis: { head: "halo", weapon: "orb", extra: "aura", eyes: "glow" },
+    w: 40, h: 78, speed: 6.6, airSpeed: 6.4, jump: 14.4, jumps: 3, weight: 0.9, fall: 1,
+  }, {
+    jab: "Gleam", ftilt: "Ray", btilt: "Turn", utilt: "Lift", dtilt: "Skim",
+    nair: "Halo", fair: "Lance", bair: "Back Light", uair: "Ascend", dair: "Falling Star",
+    smash: "Corona", usmash: "Crown", dsmash: "Eclipse",
+    neutral: "Moonshot", side: "Comet", down: "Ward", up: "Rise",
+    dash: "Glide", getup: "Dawn", grab: "Bind",
+  }, {
+    reach: 1.12, power: 1.05,
+    overlay: {
+      special: { startup: 12, active: 2, recovery: 16, dmg: 8, base: 4.2, scale: 0.5, hb: hb(28, -46, 18, 18), projectile: { vx: 12, vy: 0, r: 14, life: 80 } },
+      side: { lunge: { vx: 16, vy: -2 }, dmg: 9, angle: 32, hb: hb(48, -40, 56, 28) },
+      dair: { meteor: true, angle: -76, dmg: 13, base: 6.2, scale: 0.85, hb: hb(0, 6, 48, 56), name: "Falling Star" },
+      heavy: { startup: 16, dmg: 17, base: 8, scale: 1.1, hb: hb(46, -44, 64, 28), sweet: sweet(hb(88, -42, 24, 20), 22, 10, 1.25, 40), shake: 8 },
+      up: { lunge: { vx: 1, vy: -18 }, hb: hb(8, -72, 48, 64), dmg: 10 },
+    },
+  }),
 ];

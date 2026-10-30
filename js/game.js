@@ -1,7 +1,7 @@
-import { SCHEMES, character, hazardClock, stage } from "./data.js?v=solo";
+import { SCHEMES, character, hazardClock, stage } from "./data.js?v=sol";
 import { sfx, toggleMute } from "./audio.js";
-import { drawWorld } from "./render.js?v=fx";
-import { NET_DELAY, packInput, unpackInput } from "./net.js?v=rank";
+import { drawWorld } from "./render.js?v=sol";
+import { NET_DELAY, packInput, unpackInput } from "./net.js?v=sol";
 
 const GRAV = 0.62;
 const SHIELD_MAX = 70;

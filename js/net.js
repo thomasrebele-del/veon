@@ -43,10 +43,27 @@ export function readElo() {
   return 1000;
 }
 
+export const RANK_ONE = 1100;
+const RANK_KEY = "veon-rank1";
+
 export function writeElo(n) {
   const v = Math.max(100, Math.min(4000, Math.round(n)));
-  try { localStorage.setItem("veon-elo", String(v)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem("veon-elo", String(v));
+    if (v >= RANK_ONE) localStorage.setItem(RANK_KEY, "1");
+  } catch { /* ignore */ }
   return v;
+}
+
+export function rankOne() {
+  try {
+    if (localStorage.getItem(RANK_KEY) === "1") return true;
+  } catch { /* ignore */ }
+  if (readElo() >= RANK_ONE) {
+    try { localStorage.setItem(RANK_KEY, "1"); } catch { /* ignore */ }
+    return true;
+  }
+  return false;
 }
 
 // Standard Elo. A win against a higher rating moves you more than a win against a lower one.

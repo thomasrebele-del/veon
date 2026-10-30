@@ -20,6 +20,9 @@ html, body {
   overflow: hidden;
 }
 
+.css-icon.sealed { opacity: 0.38; filter: grayscale(1); }
+.css-icon.sealed canvas { visibility: hidden; }
+
 #trailer {
   position: fixed;
   inset: 0;
