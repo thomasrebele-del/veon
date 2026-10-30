@@ -713,6 +713,32 @@ window.addEventListener("resize", fit);
 fit();
 render();
 
+const trailer = document.getElementById("trailer");
+const trailerVideo = document.getElementById("trailer-video");
+function closeTrailer() {
+  if (!trailer || trailer.classList.contains("gone")) return;
+  trailer.classList.add("gone");
+  trailerVideo?.pause();
+}
+document.getElementById("trailer-skip")?.addEventListener("click", closeTrailer);
+trailerVideo?.addEventListener("ended", closeTrailer);
+window.addEventListener("keydown", (e) => {
+  if (!trailer || trailer.classList.contains("gone")) return;
+  if (e.code === "Escape" || e.code === "Enter" || e.code === "Space") {
+    e.preventDefault();
+    e.stopPropagation();
+    closeTrailer();
+  }
+}, true);
+fetch("show/veon-trailer.mp4?v=game")
+  .then((res) => res.blob())
+  .then((blob) => {
+    if (!trailerVideo || trailer?.classList.contains("gone")) return;
+    trailerVideo.src = URL.createObjectURL(blob);
+    return trailerVideo.play();
+  })
+  .catch(() => closeTrailer());
+
 function loop() {
   frame++;
   if (view === "menu") {
