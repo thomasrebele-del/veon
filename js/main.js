@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=solo";
 import { drawMenuScene, drawPortrait } from "./render.js?v=fx";
-import { Game } from "./game.js?v=solo";
+import { Game } from "./game.js?v=rank";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom } from "./net.js";
+import { NET_DELAY, OnlineRoom, eloDelta, readElo, writeElo } from "./net.js?v=rank";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -248,6 +248,7 @@ function resultsHtml() {
   return `<div class="screen"><div class="results">
       <p class="eyebrow">Winner</p>
       <h2 class="winner">${names}</h2>
+      ${r.elo ? `<p class="tag">${r.elo.delta >= 0 ? "+" : ""}${r.elo.delta} rating · now ${r.elo.after}</p>` : ""}
       ${r.finisher ? `<p class="tag">Finished with ${r.finisher}</p>` : `<p class="tag">The void keeps the rest.</p>`}
       <div class="stats n${r.stats.length}">
         ${r.stats.map((s) => `<div class="panel stat" style="--fighter:${s.color}"><b>${s.name}</b><p>${s.label}</p><p>KOs ${s.kos}</p><p>Falls ${s.falls}</p><p>Damage ${s.dealt}%</p></div>`).join("")}
@@ -287,14 +288,29 @@ function onlineHtml() {
         <h2>Online</h2>
         <span></span>
       </div>
+      <p class="lobby-note">Your rating is <b>${readElo()}</b>. A rated match changes it when someone wins.</p>
       <div class="modes">
+        <button data-act="find"><strong>Find match</strong><span>Connects you to anyone who is online. No code. Rated.</span></button>
         <button data-act="host"><strong>Host match</strong><span>You get a code. Send it to the other player.</span></button>
-        <button data-act="join"><strong>Join match</strong><span>Enter the host's code.</span></button>
+        <button data-act="join"><strong>Join match</strong><span>Enter the host's code. Press Enter in the box.</span></button>
       </div>
       <div class="panel" style="margin-top:16px">
         <p><b>ROOM CODE</b></p>
         <input id="room-code" class="code" maxlength="5" placeholder="CODE" autocomplete="off">
         <p class="lobby-note">${lobby.note || lobby.status || "Both of you need this game open. Each player uses the Player 1 keys."}</p>
+      </div>
+    </div></div>`;
+  }
+  if (lobby.phase === "searching") {
+    return `<div class="screen"><div class="sheet">
+      <div class="row">
+        <button class="ghost" data-act="back">← Back</button>
+        <h2>Finding a match</h2>
+        <span></span>
+      </div>
+      <div class="panel">
+        <p><b>RATING ${readElo()}</b></p>
+        <p class="lobby-note">${lobby.note || "Looking for anyone who has Veon open."}</p>
       </div>
     </div></div>`;
   }
@@ -326,7 +342,7 @@ function onlineHtml() {
   return `<div class="screen"><div class="sheet">
     <div class="row">
       <button class="ghost" data-act="back">← Back</button>
-      <h2>Online ${lobby.code}</h2>
+      <h2>${lobby.ranked ? "Rated match" : `Online ${lobby.code}`}</h2>
       ${start}
     </div>
     <div class="cards n2">
@@ -334,6 +350,7 @@ function onlineHtml() {
         <canvas class="bust" width="480" height="280" data-id="${mine.id}"></canvas>
         <p class="arch">You</p>
         <h3>${mine.name}</h3>
+        ${lobby.ranked ? `<p class="blurb">Rating ${readElo()}</p>` : ""}
         <div class="css-roster css-roster-online">
           ${CHARACTERS.map((c) => `<button class="css-icon ${c.id === mine.id ? "hot" : ""}" style="--fighter:${c.color}" data-act="mychar" data-id="${c.id}" title="${c.name}"><canvas class="icon-bust" width="160" height="120" data-id="${c.id}"></canvas></button>`).join("")}
         </div>
@@ -341,6 +358,7 @@ function onlineHtml() {
       <article class="card" style="--fighter:${theirs?.color || "#888"}">
         <p class="arch">Opponent</p>
         <h3>${theirs?.name || "Choosing…"}</h3>
+        ${lobby.ranked ? `<p class="blurb">Rating ${state.theirElo || 1000}</p>` : ""}
         <p class="blurb">${theirs?.blurb || "Their pick shows up when they choose."}</p>
       </article>
     </div>
@@ -376,11 +394,21 @@ function wireRoom() {
       state.lobby.code = extra || room.code;
       state.lobby.status = "Share this code. The other player presses Online, then Join.";
       render();
+    } else if (status === "searching") {
+      state.lobby.phase = "searching";
+      state.lobby.ranked = true;
+      state.lobby.note = "Looking for anyone who has Veon open.";
+      render();
     } else if (status === "connected") {
       state.lobby.phase = "lobby";
+      state.lobby.role = room.role || state.lobby.role;
+      state.lobby.ranked = !!room.ranked;
+      state.theirElo = room.theirElo || 1000;
       state.lobby.status = "";
-      state.lobby.note = "Connected. Pick a fighter. You both use the Player 1 keys.";
-      room.send({ t: "pick", charId: state.lobby.myChar });
+      state.lobby.note = room.ranked
+        ? "Rated match. Pick a fighter. You both use the Player 1 keys."
+        : "Connected. Pick a fighter. You both use the Player 1 keys.";
+      room.send({ t: "pick", charId: state.lobby.myChar, elo: room.elo });
       if (state.lobby.role === "host") room.send({ t: "rules", arenaId: state.arenaId, stocks: state.stocks });
       render();
     } else if (status === "closed") {
@@ -396,7 +424,7 @@ function wireRoom() {
       else render();
     } else if (status === "error") {
       state.lobby.phase = state.lobby.phase === "lobby" ? "lobby" : "error";
-      state.lobby.note = extra?.message || "The link dropped.";
+      state.lobby.note = extra?.message || extra || "The link dropped.";
       render();
     }
   };
@@ -404,6 +432,10 @@ function wireRoom() {
     if (!msg || !state.lobby) return;
     if (msg.t === "pick") {
       state.lobby.theirChar = msg.charId;
+      if (msg.elo) {
+        room.theirElo = Number(msg.elo) || room.theirElo;
+        state.theirElo = room.theirElo;
+      }
       if (state.screen === "online") render();
     } else if (msg.t === "rules" && state.lobby.role !== "host") {
       state.arenaId = msg.arenaId;
@@ -490,6 +522,13 @@ function startFight() {
     if (result.training) {
       state.screen = "setup";
     } else {
+      if (state.lobby?.ranked && state.net && result.winnerSlots?.length) {
+        const mine = readElo();
+        const won = result.winnerSlots.includes(state.net.localSlot);
+        const delta = eloDelta(mine, state.theirElo || 1000, won);
+        const after = writeElo(mine + delta);
+        result.elo = { before: mine, delta: after - mine, after };
+      }
       state.result = result;
       state.screen = "results";
     }
@@ -517,6 +556,19 @@ ui.addEventListener("click", (e) => {
     state.lobby = { phase: "choose", role: "", code: "", myChar: "rook", theirChar: "", status: "", note: "" };
     state.screen = "online";
     render();
+  } else if (act === "find") {
+    const myChar = state.lobby?.myChar || "rook";
+    state.lobby = { phase: "searching", role: "", code: "", myChar, theirChar: "", status: "", note: "Looking for anyone who has Veon open.", ranked: true };
+    render();
+    room?.destroy();
+    room = new OnlineRoom();
+    wireRoom();
+    room.find(myChar).catch((err) => {
+      if (!state.lobby) return;
+      state.lobby.phase = "error";
+      state.lobby.note = err.message || "Could not search for a match.";
+      render();
+    });
   } else if (act === "host") {
     state.lobby = { phase: "connecting", role: "host", code: "", myChar: state.lobby?.myChar || "rook", theirChar: "", status: "Opening a room…", note: "" };
     render();
@@ -633,6 +685,11 @@ window.addEventListener("keydown", (e) => {
 }, true);
 
 window.addEventListener("keydown", (e) => {
+  if (e.code === "Enter" && state.screen === "online" && state.lobby && state.lobby.phase !== "lobby" && state.lobby.phase !== "waiting" && state.lobby.phase !== "searching") {
+    e.preventDefault();
+    ui.querySelector("[data-act='join']")?.click();
+    return;
+  }
   if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
   if (state.screen !== "setup") return;
   ensureHands();

@@ -1,7 +1,7 @@
 import { SCHEMES, character, hazardClock, stage } from "./data.js?v=solo";
 import { sfx, toggleMute } from "./audio.js";
 import { drawWorld } from "./render.js?v=fx";
-import { NET_DELAY, packInput, unpackInput } from "./net.js";
+import { NET_DELAY, packInput, unpackInput } from "./net.js?v=rank";
 
 const GRAV = 0.62;
 const SHIELD_MAX = 70;
@@ -1888,8 +1888,11 @@ export class Game {
     this.over = true;
     const teams = [...this.aliveTeams()];
     const win = teams[0];
+    const winners = this._forfeit != null
+      ? this.fighters.filter((f) => f.slot !== this._forfeit).map((f) => f.slot)
+      : this.fighters.filter((f) => f.team === win && f.stocks > 0).map((f) => f.slot);
     const payload = {
-      winnerSlots: this.fighters.filter((f) => f.team === win && f.stocks > 0).map((f) => f.slot),
+      winnerSlots: winners,
       stats: this.fighters.map((f) => ({
         slot: f.slot,
         name: f.def.name,
@@ -1907,7 +1910,10 @@ export class Game {
     this.onEnd(payload);
   }
 
-  quit() { this.finish(); }
+  quit() {
+    if (this.cfg.online) this._forfeit = this.cfg.online.localSlot;
+    this.finish();
+  }
 
   burst(x, y, color, n, speed) {
     const count = this.reduced ? Math.ceil(n * 0.45) : n;
