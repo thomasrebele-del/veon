@@ -1,9 +1,9 @@
 import { CHARACTERS, STAGES, hazardClock } from "./data.js?v=sol";
-import { INK, disk, limb, poly } from "./body.js?v=cast40";
-import { drawBrawler, drawHeavy, drawGrappler } from "./looks/brawlers.js";
-import { drawSpeed, drawTrick, drawDancer } from "./looks/agile.js";
-import { drawFencer, drawArcher, drawLancer, drawWitch } from "./looks/weapons.js";
-import { drawCast } from "./looks/cast.js";
+import { INK, disk, limb, poly } from "./body.js?v=brawl";
+import { drawBrawler, drawHeavy, drawGrappler } from "./looks/brawlers.js?v=brawl";
+import { drawSpeed, drawTrick, drawDancer } from "./looks/agile.js?v=brawl";
+import { drawFencer, drawArcher, drawLancer, drawWitch } from "./looks/weapons.js?v=brawl";
+import { drawCast } from "./looks/cast.js?v=brawl";
 
 const lookDraw = {
   brawler: drawBrawler,

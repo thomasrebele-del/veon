@@ -1,4 +1,4 @@
-import { INK, disk, drawRig, inkFill, layout, lightDir, limb, poly } from "../body.js";
+import { INK, disk, drawRig, inkFill, layout, lightDir, limb, poly } from "../body.js?v=brawl";
 
 function shade(hex, amt) {
   const raw = String(hex || "#888").replace("#", "");

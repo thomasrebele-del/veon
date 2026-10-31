@@ -1,6 +1,6 @@
 // Fighter space: feet at the origin, +x facing, +y down.
 // Bones come from body.js so these three match the rest of the cast.
-import { INK, anchors, disk, drawRig, limb, poly } from "../body.js";
+import { INK, anchors, disk, drawRig, limb, poly } from "../body.js?v=brawl";
 
 function shade(hex, amt) {
   const raw = String(hex || "#888").replace("#", "");

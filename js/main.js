@@ -1,6 +1,6 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
-import { drawMenuScene, drawPortrait } from "./render.js?v=sol";
-import { Game } from "./game.js?v=sol";
+import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
+import { Game } from "./game.js?v=brawl";
 import { sfx, unlock } from "./audio.js";
 import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=sol";
 

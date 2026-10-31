@@ -1,4 +1,4 @@
-import { INK, disk, gloss, inkFill, lightDir, limb, layout, poly } from "../body.js";
+import { INK, disk, gloss, inkFill, lightDir, limb, layout, poly } from "../body.js?v=brawl";
 
 const HAIR = {
   trick: "#3a1028",

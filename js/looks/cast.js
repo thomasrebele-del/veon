@@ -1,4 +1,4 @@
-import { INK, disk, drawRig, poly } from "../body.js?v=cast40";
+import { INK, disk, drawRig, poly } from "../body.js?v=brawl";
 
 function shade(hex, amt) {
   const raw = String(hex || "#888").replace("#", "");

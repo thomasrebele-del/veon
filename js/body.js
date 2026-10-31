@@ -1,6 +1,6 @@
-const INK = "#140c09";
-const INK_W = 2;
-const INK_DETAIL = 1.5;
+const INK = "#1a120c";
+const INK_W = 3.6;
+const INK_DETAIL = 2.2;
 
 const SKIN = {
   brawler: "#f0c3a0",
@@ -129,11 +129,7 @@ function celSides(ctx, pts, fill) {
   }
   const span = max - min;
   if (!(span >= 6)) return;
-  const mid = (min + max) / 2;
-  const gap = span * 0.1;
-  fillHalf(ctx, pts, lx, ly, mid - gap, false, shade(fill, -0.5));
-  fillHalf(ctx, pts, lx, ly, mid + gap, true, shade(fill, 0.38));
-  fillHalf(ctx, pts, lx, ly, max - span * 0.2, true, shade(fill, 0.7));
+  fillHalf(ctx, pts, lx, ly, min + span * 0.42, false, shade(fill, -0.28));
 }
 
 function trace(ctx, pts) {
@@ -192,12 +188,7 @@ export function disk(ctx, x, y, r, fill, weight = INK_W) {
     ctx.save();
     draw();
     ctx.clip();
-    cap(-1, shade(fill, -0.5));
-    cap(1, shade(fill, 0.4));
-    ctx.fillStyle = "rgba(255,250,242,0.55)";
-    ctx.beginPath();
-    ctx.ellipse(x + lx * rad * 0.38, y + ly * rad * 0.42, rad * 0.26, rad * 0.13, Math.atan2(ly, lx), 0, Math.PI * 2);
-    ctx.fill();
+    cap(-1, shade(fill, -0.28));
     ctx.restore();
   }
   const ink = inkOf(weight);
@@ -225,11 +216,8 @@ export function inkFill(ctx, fill, weight = INK_W, span = 0) {
     const shift = span * 0.58;
     ctx.save();
     ctx.clip();
-    ctx.translate(-lx * shift, -ly * shift);
-    ctx.fillStyle = shade(fill, -0.46);
-    ctx.fill();
-    ctx.translate(lx * shift * 2, ly * shift * 2);
-    ctx.fillStyle = shade(fill, 0.52);
+    ctx.translate(-lx * shift * 0.55, -ly * shift * 0.55);
+    ctx.fillStyle = shade(fill, -0.28);
     ctx.fill();
     ctx.restore();
   }
@@ -238,11 +226,11 @@ export function inkFill(ctx, fill, weight = INK_W, span = 0) {
 function eye(ctx, x, y, r) {
   ctx.fillStyle = "#fffaf2";
   ctx.beginPath();
-  ctx.ellipse(x, y, r * 0.42, r * 0.28, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y, r * 0.55, r * 0.4, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = INK;
   ctx.beginPath();
-  ctx.arc(x + r * 0.1, y, r * 0.14, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.12, y, r * 0.22, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -300,9 +288,7 @@ export function limb(ctx, x1, y1, x2, y2, width, color) {
   ctx.save();
   capsule(ctx, x1, y1, x2, y2, r);
   ctx.clip();
-  quad(ctx, ax, ay, bx, by, -px * r * 0.32, -py * r * 0.32, r * 0.42, shade(color, -0.55));
-  quad(ctx, ax, ay, bx, by, px * r * 0.4, py * r * 0.4, r * 0.24, shade(color, 0.58));
-  quad(ctx, ax, ay, bx, by, px * r * 0.62, py * r * 0.62, r * 0.07, "rgba(255,250,242,0.72)");
+  quad(ctx, ax, ay, bx, by, -px * r * 0.28, -py * r * 0.28, r * 0.38, shade(color, -0.3));
   ctx.restore();
 }
 
