@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=link";
+import { Game } from "./game.js?v=meet";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=link";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=meet";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -293,15 +293,11 @@ function onlineHtml() {
         <span></span>
       </div>
       <p class="lobby-note">Your rating is <b>${readElo()}</b>. Reach <b>${RANK_ONE}</b> and you are rank #1. That opens Sol.</p>
-      <div class="modes">
-        <button data-act="find"><strong>Find match</strong><span>Connects you to anyone who is online. No code. Rated.</span></button>
-        <button data-act="host"><strong>Host match</strong><span>You get a code. Send it to the other player.</span></button>
-        <button data-act="join"><strong>Join match</strong><span>Enter the host's code. Press Enter in the box.</span></button>
-      </div>
       <div class="panel" style="margin-top:16px">
         <p><b>ROOM CODE</b></p>
         <input id="room-code" class="code" maxlength="5" placeholder="CODE" autocomplete="off">
-        <p class="lobby-note">${lobby.note || lobby.status || "Both of you need this game open. Each player uses the Player 1 keys."}</p>
+        <button class="fight" data-act="meet" style="margin-top:12px">Find this code</button>
+        <p class="lobby-note">${lobby.note || lobby.status || "Type the same five letters as the other player. If you are first, you wait. If they are already there, you join them. Leave the box empty to make a new code."}</p>
       </div>
     </div></div>`;
   }
@@ -399,7 +395,7 @@ function wireRoom() {
     if (status === "waiting") {
       state.lobby.phase = "waiting";
       state.lobby.code = extra || room.code;
-      state.lobby.status = "Share this code. The other player presses Online, then Join.";
+      state.lobby.status = "Share this code. The other player types it and presses Find this code.";
       render();
     } else if (status === "searching") {
       state.lobby.phase = "searching";
@@ -581,40 +577,18 @@ ui.addEventListener("click", (e) => {
     state.lobby = { phase: "choose", role: "", code: "", myChar: "rook", theirChar: "", status: "", note: "" };
     state.screen = "online";
     render();
-  } else if (act === "find") {
+  } else if (act === "meet") {
+    const typed = ui.querySelector("#room-code")?.value || "";
     const myChar = state.lobby?.myChar || "rook";
-    state.lobby = { phase: "searching", role: "", code: "", myChar, theirChar: "", status: "", note: "Looking for anyone who has Veon open.", ranked: true };
+    state.lobby = { phase: "searching", role: "", code: typed, myChar, theirChar: "", status: "", note: typed ? `Looking for anyone using ${typed.toUpperCase()}.` : "Making a code and waiting.", ranked: true };
     render();
     room?.destroy();
     room = new OnlineRoom();
     wireRoom();
-    room.find(myChar).catch((err) => {
+    room.meet(typed).catch((err) => {
       if (!state.lobby) return;
       state.lobby.phase = "error";
-      state.lobby.note = err.message || "Could not search for a match.";
-      render();
-    });
-  } else if (act === "host") {
-    state.lobby = { phase: "connecting", role: "host", code: "", myChar: state.lobby?.myChar || "rook", theirChar: "", status: "Opening a room…", note: "" };
-    render();
-    room?.destroy();
-    room = new OnlineRoom();
-    wireRoom();
-    room.host().catch((err) => {
-      state.lobby.phase = "error";
-      state.lobby.note = err.message || "Could not open a room.";
-      render();
-    });
-  } else if (act === "join") {
-    const code = ui.querySelector("#room-code")?.value || "";
-    state.lobby = { phase: "connecting", role: "guest", code, myChar: state.lobby?.myChar || "rook", theirChar: "", status: "Looking for that match…", note: "Looking for that match…" };
-    render();
-    room?.destroy();
-    room = new OnlineRoom();
-    wireRoom();
-    room.join(code).catch((err) => {
-      state.lobby.phase = "error";
-      state.lobby.note = err.message || "No match with that code.";
+      state.lobby.note = err.message || "Could not find that code.";
       render();
     });
   } else if (act === "copy" && state.lobby?.code) {
@@ -714,7 +688,7 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keydown", (e) => {
   if (e.code === "Enter" && state.screen === "online" && state.lobby && state.lobby.phase !== "lobby" && state.lobby.phase !== "waiting" && state.lobby.phase !== "searching") {
     e.preventDefault();
-    ui.querySelector("[data-act='join']")?.click();
+    ui.querySelector("[data-act='meet']")?.click();
     return;
   }
   if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
