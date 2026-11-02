@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=brawl";
+import { Game } from "./game.js?v=link";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=sol";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=link";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -506,6 +506,24 @@ function render() {
   else if (state.screen === "results") ui.innerHTML = resultsHtml();
   else ui.innerHTML = fightHtml();
   paint();
+  scrollToPick();
+}
+
+function scrollToPick() {
+  const roster = ui.querySelector(".css-roster");
+  if (!roster) return;
+  let icon = null;
+  if (state.screen === "setup" && state.hands) {
+    const hand = state.hands.find((h, i) => state.slots[i].controller.type === "human" && !h.ready) || state.hands[0];
+    icon = roster.querySelectorAll(".css-icon")[hand?.index];
+  } else if (state.screen === "online") {
+    icon = roster.querySelector(".css-icon.hot");
+  }
+  if (!icon) return;
+  const top = icon.offsetTop;
+  const bottom = top + icon.offsetHeight;
+  if (top < roster.scrollTop) roster.scrollTop = Math.max(0, top - 12);
+  else if (bottom > roster.scrollTop + roster.clientHeight) roster.scrollTop = bottom - roster.clientHeight + 12;
 }
 
 function startFight() {

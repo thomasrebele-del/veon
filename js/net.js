@@ -73,7 +73,21 @@ export function eloDelta(mine, theirs, win) {
 }
 
 function peerOpts() {
-  return { debug: 0, config: ICE };
+  // A custom config replaces PeerJS defaults, including its TURN relay.
+  // Without that relay, a hosted room is invisible through a school firewall.
+  return {
+    debug: 0,
+    config: {
+      iceServers: [
+        ...ICE.iceServers,
+        {
+          urls: ["turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478"],
+          username: "peerjs",
+          credential: "peerjsp",
+        },
+      ],
+    },
+  };
 }
 
 function loadPeer() {
@@ -221,17 +235,33 @@ export class OnlineRoom {
       throw err;
     }
     this.watch(peer);
-    const conn = peer.connect(`veon-${this.code}`, { reliable: true, serialization: "json" });
-    this.bind(conn);
-    try {
-      await once(conn, "open", "error", 18000, "No match is using that code. Ask your friend to host first.");
-    } catch (err) {
-      this.destroy();
-      throw err?.type === "peer-unavailable"
-        ? new Error("No match is using that code. Ask your friend to host first.")
-        : err;
+    const roomId = `veon-${this.code}`;
+    let last = null;
+    for (let attempt = 0; attempt < 3 && this.alive; attempt++) {
+      const conn = peer.connect(roomId, { reliable: true, serialization: "json" });
+      const missing = new Promise((_, reject) => {
+        peer.on("error", (err) => {
+          if (err?.type === "peer-unavailable") reject(err);
+        });
+      });
+      try {
+        await Promise.race([
+          once(conn, "open", "error", 16000, "The room did not answer. Check the code and try again."),
+          missing,
+        ]);
+        this.bind(conn);
+        this.onStatus("connected");
+        return;
+      } catch (err) {
+        last = err;
+        try { conn.close(); } catch { /* not open */ }
+        if (err?.type === "peer-unavailable") break;
+      }
     }
-    this.onStatus("connected");
+    this.destroy();
+    throw last?.type === "peer-unavailable"
+      ? new Error("No match is using that code. Ask your friend to host first, then join.")
+      : (last || new Error("The room did not answer. Check the code and try again."));
   }
 
   // Claim the shared lobby if it is free. Otherwise wait in that lobby's queue.

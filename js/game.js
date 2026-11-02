@@ -1,7 +1,7 @@
 import { SCHEMES, character, hazardClock, stage } from "./data.js?v=sol";
 import { sfx, toggleMute } from "./audio.js";
 import { drawWorld } from "./render.js?v=brawl";
-import { NET_DELAY, packInput, unpackInput } from "./net.js?v=sol";
+import { NET_DELAY, packInput, unpackInput } from "./net.js?v=link";
 
 const GRAV = 0.62;
 const SHIELD_MAX = 70;
@@ -1655,12 +1655,13 @@ export class Game {
       if (target.shieldHp <= 0) this.breakShield(target);
       return;
     }
-    const dmg = move.dmg * power * dealt;
+    const dmg = move.dmg * power * dealt * (move.meteor ? 1.8 : 1);
     const rage = attacker ? 1 + attacker.dmg / 900 : 1;
     const base = move.base * (1 + (power - 1) * 0.85);
     const shape = attacker && attacker.def ? attacker.def.shape : "";
     const kbOut = shape === "heavy" || shape === "grappler" ? 0.82 : 1;
-    const kb = (base + target.dmg * move.scale * 0.12 * (move.dmg / 10 + 0.5)) / target.def.weight * rage * kbOut;
+    let kb = (base + target.dmg * move.scale * 0.12 * (move.dmg / 10 + 0.5)) / target.def.weight * rage * kbOut;
+    if (move.meteor) kb *= 2.4;
     const { ix, iy } = this.stick(target);
     let angle = move.angle;
     if (move.meteor && target.grounded) angle = 42;
