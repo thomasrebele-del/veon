@@ -1,7 +1,7 @@
 import { SCHEMES, character, hazardClock, stage } from "./data.js?v=sol";
 import { sfx, toggleMute } from "./audio.js";
 import { drawWorld } from "./render.js?v=brawl";
-import { NET_DELAY, packInput, unpackInput } from "./net.js?v=meet";
+import { NET_DELAY, packInput, unpackInput } from "./net.js?v=detect";
 
 const GRAV = 0.62;
 const SHIELD_MAX = 70;

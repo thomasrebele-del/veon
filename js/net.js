@@ -93,8 +93,21 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function normalizeCode(raw) {
+  return String(raw || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 5);
+}
+
+export function roomIdFor(code) {
+  return `veon${normalizeCode(code).toLowerCase()}`;
+}
+
 function roomId(code) {
-  return `veon${String(code).toLowerCase()}`;
+  return roomIdFor(code);
+}
+
+function armOpen(conn, go) {
+  if (conn.open) go();
+  else conn.on("open", go);
 }
 
 export class OnlineRoom {
@@ -145,9 +158,9 @@ export class OnlineRoom {
   }
 
   // First person with this code waits. The next person with the same code joins them.
-  async meet(raw) {
-    const Peer = await loadPeer();
-    const code = String(raw || randomCode()).toUpperCase().replace(/[^A-Z]/g, "").slice(0, 5);
+  async meet(raw, PeerOverride) {
+    const Peer = PeerOverride || await loadPeer();
+    const code = normalizeCode(raw || randomCode());
     if (code.length < 5) throw new Error("Use five letters.");
     this.code = code;
     this.elo = readElo();
@@ -184,12 +197,12 @@ export class OnlineRoom {
         try { peer.destroy(); } catch { /* timed out */ }
         finish("retry");
       }, 12000);
+      peer.on("connection", (conn) => {
+        armOpen(conn, () => this.take(conn));
+      });
       peer.on("open", () => {
         this.peer = peer;
         this.role = "host";
-        peer.on("connection", (conn) => {
-          conn.on("open", () => this.take(conn));
-        });
         peer.on("disconnected", () => {
           if (!peer.destroyed && this.alive) {
             try { peer.reconnect(); } catch { /* guest will retry */ }
@@ -223,7 +236,7 @@ export class OnlineRoom {
       const timer = setTimeout(() => fail(new Error("That code did not answer. Ask them to stay on the code.")), 16000);
       peer.on("open", () => {
         const conn = peer.connect(id, { reliable: true });
-        conn.on("open", () => {
+        armOpen(conn, () => {
           if (done) return;
           done = true;
           clearTimeout(timer);
