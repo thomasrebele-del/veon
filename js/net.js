@@ -20,9 +20,9 @@ export function unpackInput(bits) {
   return input;
 }
 
-const PEER_URLS = [
-  "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js",
-  "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",
+const BROKERS = [
+  "wss://broker.hivemq.com:8884/mqtt",
+  "wss://broker.emqx.io:8084/mqtt",
 ];
 
 export function readElo() {
@@ -68,29 +68,137 @@ export function randomCode() {
   return s;
 }
 
-function loadPeer() {
-  if (window.Peer) return Promise.resolve(window.Peer);
-  if (window.__veonPeer) return window.__veonPeer;
-  window.__veonPeer = new Promise((resolve, reject) => {
-    let i = 0;
-    const next = () => {
-      if (i >= PEER_URLS.length) {
-        reject(new Error("Could not load the online library."));
-        return;
-      }
-      const s = document.createElement("script");
-      s.src = PEER_URLS[i++];
-      s.onload = () => (window.Peer ? resolve(window.Peer) : next());
-      s.onerror = () => next();
-      document.head.appendChild(s);
-    };
-    next();
-  });
-  return window.__veonPeer;
-}
-
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clientId() {
+  return `v${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function mqttLen(n) {
+  const out = [];
+  do {
+    let b = n % 128;
+    n = Math.floor(n / 128);
+    if (n > 0) b |= 0x80;
+    out.push(b);
+  } while (n > 0);
+  return out;
+}
+
+function mqttStr(text) {
+  const bytes = new TextEncoder().encode(text);
+  return [bytes.length >> 8, bytes.length & 0xff, ...bytes];
+}
+
+function mqttPacket(type, body) {
+  return Uint8Array.from([type, ...mqttLen(body.length), ...body]);
+}
+
+function readMqtt(buf, onPacket) {
+  let rest = buf;
+  while (rest.length >= 2) {
+    let value = 0;
+    let mult = 1;
+    let i = 1;
+    let complete = false;
+    for (; i < rest.length && i < 5; i++) {
+      value += (rest[i] & 0x7f) * mult;
+      mult *= 128;
+      if ((rest[i] & 0x80) === 0) {
+        complete = true;
+        i += 1;
+        break;
+      }
+    }
+    if (!complete || rest.length < i + value) break;
+    onPacket(rest[0], rest.slice(i, i + value));
+    rest = rest.slice(i + value);
+  }
+  return rest;
+}
+
+function mqttString(body, offset) {
+  const n = (body[offset] << 8) | body[offset + 1];
+  const text = new TextDecoder().decode(body.slice(offset + 2, offset + 2 + n));
+  return [text, offset + 2 + n];
+}
+
+function openMqtt(topic) {
+  return new Promise((resolve, reject) => {
+    let index = 0;
+    let settled = false;
+    const fail = (err) => {
+      if (settled) return;
+      if (index >= BROKERS.length) reject(err);
+      else connect(BROKERS[index++]);
+    };
+    const connect = (url) => {
+      let ws;
+      let buf = new Uint8Array(0);
+      const timer = setTimeout(() => {
+        try { ws?.close(); } catch { /* timed out */ }
+        if (!settled) fail(new Error("The code board did not answer."));
+      }, 7000);
+      try {
+        ws = new WebSocket(url, ["mqtt"]);
+      } catch (err) {
+        clearTimeout(timer);
+        fail(err);
+        return;
+      }
+      ws.binaryType = "arraybuffer";
+      const listeners = new Set();
+      ws.onopen = () => {
+        const id = clientId();
+        ws.send(mqttPacket(0x10, [...mqttStr("MQTT"), 4, 0x02, 0x00, 30, ...mqttStr(id)]));
+        ws._veonId = id;
+      };
+      ws.onerror = () => {
+        if (!settled) {
+          clearTimeout(timer);
+          fail(new Error("The code board did not answer."));
+        }
+      };
+      ws.onmessage = (ev) => {
+        const chunk = new Uint8Array(ev.data);
+        const joined = new Uint8Array(buf.length + chunk.length);
+        joined.set(buf);
+        joined.set(chunk, buf.length);
+        buf = readMqtt(joined, (type, body) => {
+          const kind = type >> 4;
+          if (kind === 2 && body[1] === 0 && !settled) {
+            settled = true;
+            clearTimeout(timer);
+            ws.send(mqttPacket(0x82, [0x00, 0x01, ...mqttStr(topic), 0x00]));
+            resolve({
+              id: ws._veonId,
+              send(obj) {
+                if (ws.readyState !== 1) return;
+                const payload = [...new TextEncoder().encode(JSON.stringify(obj))];
+                ws.send(mqttPacket(0x30, [...mqttStr(topic), ...payload]));
+              },
+              on(fn) { listeners.add(fn); },
+              close() {
+                try { ws.close(); } catch { /* already closed */ }
+              },
+            });
+          } else if (kind === 3) {
+            let offset = 0;
+            [, offset] = mqttString(body, 0);
+            if (type & 0x06) offset += 2;
+            const json = new TextDecoder().decode(body.slice(offset));
+            try {
+              const msg = JSON.parse(json);
+              for (const fn of listeners) fn(msg);
+            } catch { /* ignore junk */ }
+          }
+        });
+      };
+    };
+    connect(BROKERS[index++]);
+  });
 }
 
 export function normalizeCode(raw) {
@@ -105,17 +213,14 @@ function roomId(code) {
   return roomIdFor(code);
 }
 
-function armOpen(conn, go) {
-  if (conn.open) go();
-  else conn.on("open", go);
-}
-
 export class OnlineRoom {
   constructor() {
-    this.peer = null;
+    this.link = null;
     this.conn = null;
     this.code = "";
     this.role = "";
+    this.me = "";
+    this.them = "";
     this.ranked = true;
     this.elo = readElo();
     this.theirElo = 1000;
@@ -126,137 +231,60 @@ export class OnlineRoom {
   }
 
   send(msg) {
-    if (this.conn?.open) this.conn.send(msg);
+    if (this.conn?.open) this.link?.send({ ...msg, from: this.me });
   }
 
-  take(conn) {
-    if (this.conn && this.conn !== conn) {
-      try { conn.close(); } catch { /* already full */ }
+  hear(msg) {
+    if (!this.alive || !msg || msg.from === this.me) return;
+    if (msg.t === "hi") {
+      if (this.them && msg.from !== this.them) return;
+      const first = !this.conn;
+      this.them = msg.from;
+      this.role = this.me < msg.from ? "host" : "guest";
+      if (first) {
+        this.conn = { open: true };
+        this.link?.send({ t: "hi", from: this.me });
+        this.onStatus("connected");
+      }
       return;
     }
-    this.conn = conn;
-    const ping = setInterval(() => {
-      if (!conn.open) { clearInterval(ping); return; }
-      try { conn.send({ t: "ping" }); } catch { /* ignore */ }
-    }, 4000);
-    conn.on("data", (msg) => {
-      let data = msg;
-      if (typeof data === "string") {
-        try { data = JSON.parse(data); } catch { data = null; }
-      }
-      if (!data || data.t === "ping") return;
-      this.onMessage(data);
-    });
-    conn.on("close", () => {
-      clearInterval(ping);
-      if (this.conn === conn) this.onStatus("closed");
-    });
-    conn.on("error", () => {
-      if (this.conn === conn) this.onStatus("closed");
-    });
-    this.onStatus("connected");
-  }
-
-  // First person with this code waits. The next person with the same code joins them.
-  async meet(raw, PeerOverride) {
-    const Peer = PeerOverride || await loadPeer();
-    const code = normalizeCode(raw || randomCode());
-    if (code.length < 5) throw new Error("Use five letters.");
-    this.code = code;
-    this.elo = readElo();
-    const id = roomId(code);
-    let last = null;
-    for (let attempt = 0; attempt < 4 && this.alive; attempt++) {
-      const claimed = await this.claim(Peer, id);
-      if (claimed === "host") return;
-      if (!this.alive) return;
-      try {
-        await this.joinId(Peer, id);
-        return;
-      } catch (err) {
-        last = err;
-        await wait(700);
-      }
+    if (msg.t === "bye") {
+      if (!this.them || msg.from === this.them) this.onStatus("closed");
+      return;
     }
-    this.destroy();
-    throw last || new Error("Nobody on that code answered. Try again.");
+    if (this.them && msg.from !== this.them) return;
+    this.them = this.them || msg.from;
+    this.onMessage(msg);
   }
 
-  claim(Peer, id) {
-    return new Promise((resolve) => {
-      if (!this.alive) { resolve("stop"); return; }
-      const peer = new Peer(id);
-      let done = false;
-      const finish = (value) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        resolve(value);
-      };
-      const timer = setTimeout(() => {
-        try { peer.destroy(); } catch { /* timed out */ }
-        finish("retry");
-      }, 12000);
-      peer.on("connection", (conn) => {
-        armOpen(conn, () => this.take(conn));
-      });
-      peer.on("open", () => {
-        this.peer = peer;
-        this.role = "host";
-        peer.on("disconnected", () => {
-          if (!peer.destroyed && this.alive) {
-            try { peer.reconnect(); } catch { /* guest will retry */ }
-          }
-        });
-        this.onStatus("waiting", this.code);
-        finish("host");
-      });
-      peer.on("error", (err) => {
-        if (done) return;
-        try { peer.destroy(); } catch { /* already closed */ }
-        finish(err?.type === "unavailable-id" ? "taken" : "retry");
-      });
-    });
-  }
-
-  joinId(Peer, id) {
-    return new Promise((resolve, reject) => {
-      const peer = new Peer();
-      this.peer = peer;
-      this.role = "guest";
-      let done = false;
-      const fail = (err) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        try { peer.destroy(); } catch { /* already closed */ }
-        this.peer = null;
-        reject(err instanceof Error ? err : new Error("That code did not answer."));
-      };
-      const timer = setTimeout(() => fail(new Error("That code did not answer. Ask them to stay on the code.")), 16000);
-      peer.on("open", () => {
-        const conn = peer.connect(id, { reliable: true });
-        armOpen(conn, () => {
-          if (done) return;
-          done = true;
-          clearTimeout(timer);
-          this.take(conn);
-          resolve();
-        });
-        conn.on("error", () => fail(new Error("That code did not answer.")));
-      });
-      peer.on("error", (err) => {
-        if (err?.type === "peer-unavailable") fail(new Error("Nobody is on that code yet."));
-        else fail(err);
-      });
-    });
+  // Anyone who types the same server number, 1 through 10, lands in that room.
+  async meet(raw, openLink) {
+    const server = Math.floor(Number(raw));
+    if (!(server >= 1 && server <= 10)) throw new Error("Type a server from 1 to 10.");
+    this.code = String(server);
+    this.elo = readElo();
+    const link = await (openLink || openMqtt)(`veon/s/${server}`);
+    if (!this.alive) {
+      link.close();
+      return;
+    }
+    this.link = link;
+    this.me = link.id;
+    link.on((msg) => this.hear(msg));
+    this.onStatus("waiting", this.code);
+    const hello = () => {
+      if (this.alive) link.send({ t: "hi", from: this.me });
+    };
+    hello();
+    this.hiTimer = setInterval(hello, 1000);
   }
 
   destroy() {
     this.alive = false;
-    try { this.conn?.close(); } catch { /* already gone */ }
-    try { this.peer?.destroy(); } catch { /* already gone */ }
+    clearInterval(this.hiTimer);
+    try { this.link?.send({ t: "bye", from: this.me }); } catch { /* already gone */ }
+    try { this.link?.close(); } catch { /* already gone */ }
     this.conn = null;
-    this.peer = null;
+    this.link = null;
   }
 }

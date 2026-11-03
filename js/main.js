@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=detect";
+import { Game } from "./game.js?v=srv";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=detect";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=srv";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -294,10 +294,11 @@ function onlineHtml() {
       </div>
       <p class="lobby-note">Your rating is <b>${readElo()}</b>. Reach <b>${RANK_ONE}</b> and you are rank #1. That opens Sol.</p>
       <div class="panel" style="margin-top:16px">
-        <p><b>ROOM CODE</b></p>
-        <input id="room-code" class="code" maxlength="5" placeholder="CODE" autocomplete="off">
-        <button class="fight" data-act="meet" style="margin-top:12px">Find this code</button>
-        <p class="lobby-note">${lobby.note || lobby.status || "Type the same five letters as the other player. If you are first, you wait. If they are already there, you join them. Leave the box empty to make a new code."}</p>
+        <p><b>SERVER</b></p>
+        <div class="stocks">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<button class="chip" data-act="server" data-n="${n}">${n}</button>`).join("")}</div>
+        <input id="room-code" class="code" maxlength="2" inputmode="numeric" placeholder="1" autocomplete="off">
+        <button class="fight" data-act="meet" style="margin-top:12px">Join server</button>
+        <p class="lobby-note">${lobby.note || lobby.status || "Type a server from 1 to 10, or press its number. Anyone on that server joins you. No code."}</p>
       </div>
     </div></div>`;
   }
@@ -322,10 +323,9 @@ function onlineHtml() {
         <span></span>
       </div>
       <div class="panel">
-        <p><b>SHARE THIS CODE</b></p>
+        <p><b>SERVER ${lobby.code}</b></p>
         <p class="lobby-code">${lobby.code}</p>
-        <button class="ghost" data-act="copy">Copy code</button>
-        <p class="lobby-note">${lobby.status || "Waiting for the other player."}</p>
+        <p class="lobby-note">${lobby.status || "Waiting for someone to type this server."}</p>
       </div>
     </div></div>`;
   }
@@ -342,7 +342,7 @@ function onlineHtml() {
   return `<div class="screen"><div class="sheet">
     <div class="row">
       <button class="ghost" data-act="back">← Back</button>
-      <h2>${lobby.ranked ? "Rated match" : `Online ${lobby.code}`}</h2>
+      <h2>Server ${lobby.code}</h2>
       ${start}
     </div>
     <div class="cards n2">
@@ -395,7 +395,7 @@ function wireRoom() {
     if (status === "waiting") {
       state.lobby.phase = "waiting";
       state.lobby.code = extra || room.code;
-      state.lobby.status = "Share this code. The other player types it and presses Find this code.";
+      state.lobby.status = "You are in. Anyone who types this server joins you.";
       render();
     } else if (status === "searching") {
       state.lobby.phase = "searching";
@@ -577,18 +577,24 @@ ui.addEventListener("click", (e) => {
     state.lobby = { phase: "choose", role: "", code: "", myChar: "rook", theirChar: "", status: "", note: "" };
     state.screen = "online";
     render();
-  } else if (act === "meet") {
-    const typed = ui.querySelector("#room-code")?.value || "";
+  } else if (act === "server" || act === "meet") {
+    const typed = act === "server" ? b.dataset.n : (ui.querySelector("#room-code")?.value || "");
+    const server = Math.floor(Number(typed));
     const myChar = state.lobby?.myChar || "rook";
-    state.lobby = { phase: "searching", role: "", code: typed, myChar, theirChar: "", status: "", note: typed ? `Looking for anyone using ${typed.toUpperCase()}.` : "Making a code and waiting.", ranked: true };
+    if (!(server >= 1 && server <= 10)) {
+      state.lobby = { phase: "error", role: "", code: "", myChar, theirChar: "", status: "", note: "Type a server from 1 to 10.", ranked: true };
+      render();
+      return;
+    }
+    state.lobby = { phase: "searching", role: "", code: String(server), myChar, theirChar: "", status: "", note: `Joining server ${server}.`, ranked: true };
     render();
     room?.destroy();
     room = new OnlineRoom();
     wireRoom();
-    room.meet(typed).catch((err) => {
+    room.meet(server).catch((err) => {
       if (!state.lobby) return;
       state.lobby.phase = "error";
-      state.lobby.note = err.message || "Could not find that code.";
+      state.lobby.note = err.message || "Could not join that server.";
       render();
     });
   } else if (act === "copy" && state.lobby?.code) {
