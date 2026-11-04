@@ -245,6 +245,25 @@ export class OnlineRoom {
     this.started = false;
     this.guestReady = false;
     this.startMsg = null;
+    this.localInputs = new Map();
+    this.onInputs = () => {};
+    this.readyLeft = 40;
+  }
+
+  noteLocal(f, b) {
+    this.localInputs.set(f, b | 0);
+    this.flushInputs();
+  }
+
+  flushInputs() {
+    if (!this.localInputs.size) return;
+    let from = 1;
+    for (const frame of this.localInputs.keys()) if (frame > from) from = frame;
+    const list = [];
+    for (let frame = Math.max(1, from - 30); frame <= from; frame++) {
+      if (this.localInputs.has(frame)) list.push([frame, this.localInputs.get(frame)]);
+    }
+    if (list.length) this.send({ t: "ins", list });
   }
 
   fight(payload) {
@@ -259,8 +278,16 @@ export class OnlineRoom {
 
   pump() {
     if (!this.alive) return;
-    if (hostStarts(this.role) && this.startMsg && !this.guestReady) this.send(this.startMsg);
-    if (!hostStarts(this.role) && this.seenStart) this.send({ t: "ready", n: this.seenN });
+    const inputs = [...this.localInputs.entries()].slice(-30);
+    if (hostStarts(this.role) && this.startMsg && !this.guestReady) {
+      this.startMsg.inputs = inputs;
+      this.send(this.startMsg);
+    }
+    if (!hostStarts(this.role) && this.seenStart && this.readyLeft > 0) {
+      this.readyLeft -= 1;
+      this.send({ t: "ready", n: this.seenN, inputs });
+    }
+    this.flushInputs();
   }
 
   send(msg) {
@@ -288,7 +315,9 @@ export class OnlineRoom {
     if (msg.t === "start" && !hostStarts(this.role)) {
       this.seenStart = true;
       this.seenN = msg.n;
-      this.send({ t: "ready", n: msg.n });
+      if (msg.inputs) this.onInputs(msg.inputs);
+      this.pump();
+      if (!this.startTimer) this.startTimer = setInterval(() => this.pump(), 50);
       if (!this.started) {
         this.started = true;
         this.onStart(msg);
@@ -297,7 +326,11 @@ export class OnlineRoom {
     }
     if (msg.t === "ready" && hostStarts(this.role) && this.startMsg && msg.n === this.startMsg.n) {
       this.guestReady = true;
-      clearInterval(this.startTimer);
+      if (msg.inputs) this.onInputs(msg.inputs);
+      return;
+    }
+    if (msg.t === "ins") {
+      this.onInputs(msg.list);
       return;
     }
     if (this.them && msg.from !== this.them) return;

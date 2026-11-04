@@ -79,6 +79,38 @@ for (let i = 0; i < 17000; i++) {
   passed += 1;
 }
 
+let inputsOk = 0;
+for (let i = 0; i < 500; i++) {
+  const open = hub(i % 5, i % 4, false);
+  const a = new OnlineRoom();
+  const b = new OnlineRoom();
+  const got = { a: new Map(), b: new Map() };
+  a.onInputs = (list) => { for (const [f, bits] of list || []) got.a.set(f, bits); };
+  b.onInputs = (list) => { for (const [f, bits] of list || []) got.b.set(f, bits); };
+  a.onStatus = () => {};
+  b.onStatus = () => {};
+  a.onStart = () => {};
+  b.onStart = () => {};
+  await a.meet(1, open);
+  await b.meet(1, open);
+  const host = a.role === "host" ? a : b;
+  const guest = host === a ? b : a;
+  host.fight({ chars: ["rook", "rook"] });
+  host.noteLocal(1, 3);
+  guest.noteLocal(1, 7);
+  for (let step = 0; step < 20; step++) {
+    host.pump();
+    guest.pump();
+  }
+  const hostGot = host === a ? got.a : got.b;
+  const guestGot = guest === a ? got.a : got.b;
+  if (hostGot.get(1) !== 7 || guestGot.get(1) !== 3) throw new Error(`inputs ${i}`);
+  host.destroy();
+  guest.destroy();
+  inputsOk += 1;
+}
+if (inputsOk !== 500) throw new Error("input sync");
+
 if (passed !== 17000) {
   console.error(`${passed}/17000`);
   process.exit(1);

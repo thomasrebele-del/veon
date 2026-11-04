@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=rook";
+import { Game } from "./game.js?v=play";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, hostStarts, lineup, rankOne, readElo, writeElo } from "./net.js?v=rook";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, hostStarts, lineup, rankOne, readElo, writeElo } from "./net.js?v=play";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -431,6 +431,7 @@ function wireRoom() {
       render();
     }
   };
+  room.onInputs = (list) => takeInputs(list);
   room.onStart = (msg) => beginNet(msg);
   room.onMessage = (msg) => {
     if (!msg || !state.lobby) return;
@@ -468,8 +469,24 @@ function wireRoom() {
   };
 }
 
+function takeInputs(list) {
+  if (!Array.isArray(list)) return;
+  for (const pair of list) {
+    const frame = pair[0];
+    const bits = pair[1];
+    if (state.net) state.net.remoteBox.set(frame, bits);
+    else {
+      state.earlyIn = state.earlyIn || [];
+      state.earlyIn.push({ f: frame, b: bits });
+    }
+  }
+}
+
 function beginNet(msg) {
-  if (state.net) return;
+  if (state.net) {
+    takeInputs(msg?.inputs);
+    return;
+  }
   const localSlot = state.lobby.role === "host" ? 0 : 1;
   state.mode = "online";
   state.arenaId = msg.arenaId;
@@ -485,10 +502,11 @@ function beginNet(msg) {
     delay: NET_DELAY,
     localBox,
     remoteBox,
-    send: (f, b) => room?.send({ t: "in", f, b }),
+    send: (f, b) => room?.noteLocal(f, b),
     sendSum: (f, s) => room?.send({ t: "sum", f, s }),
     sendPause: (v) => room?.send({ t: "pause", v }),
   };
+  takeInputs(msg?.inputs);
   for (const early of state.earlyIn || []) state.net.remoteBox.set(early.f, early.b);
   state.earlyIn = [];
   startFight();
