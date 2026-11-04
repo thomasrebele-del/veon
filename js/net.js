@@ -61,6 +61,10 @@ export function eloDelta(mine, theirs, win) {
   return Math.round(32 * ((win ? 1 : 0) - expected));
 }
 
+export function hostStarts(role) {
+  return role === "host";
+}
+
 export function randomCode() {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   let s = "";
@@ -231,7 +235,27 @@ export class OnlineRoom {
     this.alive = true;
     this.onMessage = () => {};
     this.onStatus = () => {};
+    this.onStart = () => {};
     this.onLeave = () => {};
+    this.started = false;
+    this.guestReady = false;
+    this.startMsg = null;
+  }
+
+  fight(payload) {
+    if (!hostStarts(this.role) || this.started || !this.conn) return false;
+    this.started = true;
+    this.startMsg = { t: "start", n: `${this.me}-1`, ...payload };
+    this.pump();
+    this.startTimer = setInterval(() => this.pump(), 50);
+    this.onStart(this.startMsg);
+    return true;
+  }
+
+  pump() {
+    if (!this.alive) return;
+    if (hostStarts(this.role) && this.startMsg && !this.guestReady) this.send(this.startMsg);
+    if (!hostStarts(this.role) && this.seenStart) this.send({ t: "ready", n: this.seenN });
   }
 
   send(msg) {
@@ -256,10 +280,20 @@ export class OnlineRoom {
       if (!this.them || msg.from === this.them) this.onStatus("closed");
       return;
     }
-    if (msg.t === "start" || !this.them) {
-      this.them = msg.from;
-      if (!this.role) this.role = this.me < msg.from ? "host" : "guest";
-      if (!this.conn) this.conn = { open: true };
+    if (msg.t === "start" && !hostStarts(this.role)) {
+      this.seenStart = true;
+      this.seenN = msg.n;
+      this.send({ t: "ready", n: msg.n });
+      if (!this.started) {
+        this.started = true;
+        this.onStart(msg);
+      }
+      return;
+    }
+    if (msg.t === "ready" && hostStarts(this.role) && this.startMsg && msg.n === this.startMsg.n) {
+      this.guestReady = true;
+      clearInterval(this.startTimer);
+      return;
     }
     if (this.them && msg.from !== this.them) return;
     this.onMessage(msg);
@@ -292,6 +326,7 @@ export class OnlineRoom {
   destroy() {
     this.alive = false;
     clearInterval(this.hiTimer);
+    clearInterval(this.startTimer);
     try { this.link?.send({ t: "bye", from: this.me }); } catch { /* already gone */ }
     try { this.link?.clear?.(); } catch { /* already gone */ }
     try { this.link?.close(); } catch { /* already gone */ }

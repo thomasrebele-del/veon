@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=start";
+import { Game } from "./game.js?v=hoststart";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=start";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, hostStarts, rankOne, readElo, writeElo } from "./net.js?v=hoststart";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -336,7 +336,7 @@ function onlineHtml() {
   const stocks = lobby.role === "host"
     ? `<div class="stocks" style="margin-top:8px">${[1, 2, 3, 5].map((n) => `<button class="chip ${n === state.stocks ? "on" : ""}" data-act="stock" data-n="${n}">${n}</button>`).join("")}</div>`
     : "";
-  const start = lobby.role === "host"
+  const start = hostStarts(lobby.role)
     ? `<button class="fight" data-act="netfight" ${lobby.theirChar ? "" : "disabled"}>Fight</button>`
     : `<p class="lobby-note">Waiting for the host to start.</p>`;
   return `<div class="screen"><div class="sheet">
@@ -408,9 +408,9 @@ function wireRoom() {
       state.lobby.ranked = !!room.ranked;
       state.theirElo = room.theirElo || 1000;
       state.lobby.status = "";
-      state.lobby.note = room.ranked
-        ? "Rated match. Pick a fighter. You both use the Player 1 keys."
-        : "Connected. Pick a fighter. You both use the Player 1 keys.";
+      state.lobby.note = room.role === "host"
+        ? "You are the host. Fight starts the match for both players."
+        : "Waiting for the host to press Fight.";
       room.send({ t: "pick", charId: state.lobby.myChar, elo: room.elo });
       if (state.lobby.role === "host") room.send({ t: "rules", arenaId: state.arenaId, stocks: state.stocks });
       render();
@@ -431,6 +431,7 @@ function wireRoom() {
       render();
     }
   };
+  room.onStart = (msg) => beginNet(msg);
   room.onMessage = (msg) => {
     if (!msg || !state.lobby) return;
     if (msg.t === "pick") {
@@ -444,12 +445,7 @@ function wireRoom() {
       state.arenaId = msg.arenaId;
       state.stocks = msg.stocks;
       if (state.screen === "online") render();
-    } else if (msg.t === "start") {
-      if (room.role) state.lobby.role = state.lobby.role || room.role;
-      beginNet(msg);
-      room.send({ t: "ack" });
-    } else if (msg.t === "ack" && room.onAck) room.onAck();
-    else if (msg.t === "in") {
+    } else if (msg.t === "in") {
       if (state.net) state.net.remoteBox.set(msg.f, msg.b);
       else {
         state.earlyIn = state.earlyIn || [];
@@ -618,19 +614,7 @@ ui.addEventListener("click", (e) => {
     room?.send({ t: "pick", charId: state.lobby.myChar });
     render();
   } else if (act === "netfight") {
-    if (state.lobby?.role === "host" && state.lobby.theirChar) {
-      const msg = { t: "start", arenaId: state.arenaId, stocks: state.stocks, chars: [state.lobby.myChar, state.lobby.theirChar] };
-      const push = () => {
-        room?.send(msg);
-        if (state.net) for (const [f, b] of state.net.localBox) room.send({ t: "in", f, b });
-      };
-      push();
-      const again = setInterval(push, 200);
-      const stop = () => clearInterval(again);
-      room.onAck = stop;
-      setTimeout(stop, 2500);
-      beginNet(msg);
-    }
+    if (state.lobby?.theirChar) room?.fight({ arenaId: state.arenaId, stocks: state.stocks, chars: [state.lobby.myChar, state.lobby.theirChar] });
   } else if (act === "back" || act === "title") {
     closeRoom();
     state.screen = "title";
