@@ -125,41 +125,41 @@ function mqttString(body, offset) {
   return [text, offset + 2 + n];
 }
 
-function openMqtt(topic) {
+function openMqtt(subscribeTopic, publishTopic, id) {
   return new Promise((resolve, reject) => {
-    let index = 0;
-    let settled = false;
-    const fail = (err) => {
-      if (settled) return;
-      if (index >= BROKERS.length) reject(err);
-      else connect(BROKERS[index++]);
+    let pending = BROKERS.length;
+    let won = false;
+    const fail = () => {
+      pending -= 1;
+      if (!won && pending <= 0) reject(new Error("The server list did not answer."));
     };
-    const connect = (url) => {
+    for (const url of BROKERS) {
       let ws;
       let buf = new Uint8Array(0);
       const timer = setTimeout(() => {
         try { ws?.close(); } catch { /* timed out */ }
-        if (!settled) fail(new Error("The code board did not answer."));
-      }, 7000);
+        fail();
+      }, 2500);
       try {
         ws = new WebSocket(url, ["mqtt"]);
-      } catch (err) {
+      } catch {
         clearTimeout(timer);
-        fail(err);
-        return;
+        fail();
+        continue;
       }
       ws.binaryType = "arraybuffer";
-      const listeners = new Set();
+      const queued = [];
+      let listener = null;
+      const give = (msg) => {
+        if (listener) listener(msg);
+        else queued.push(msg);
+      };
       ws.onopen = () => {
-        const id = clientId();
-        ws.send(mqttPacket(0x10, [...mqttStr("MQTT"), 4, 0x02, 0x00, 30, ...mqttStr(id)]));
-        ws._veonId = id;
+        ws.send(mqttPacket(0x10, [...mqttStr("MQTT"), 4, 0x02, 0x00, 15, ...mqttStr(id)]));
       };
       ws.onerror = () => {
-        if (!settled) {
-          clearTimeout(timer);
-          fail(new Error("The code board did not answer."));
-        }
+        clearTimeout(timer);
+        fail();
       };
       ws.onmessage = (ev) => {
         const chunk = new Uint8Array(ev.data);
@@ -168,18 +168,26 @@ function openMqtt(topic) {
         joined.set(chunk, buf.length);
         buf = readMqtt(joined, (type, body) => {
           const kind = type >> 4;
-          if (kind === 2 && body[1] === 0 && !settled) {
-            settled = true;
+          if (kind === 2 && body[1] === 0 && !won) {
+            won = true;
             clearTimeout(timer);
-            ws.send(mqttPacket(0x82, [0x00, 0x01, ...mqttStr(topic), 0x00]));
+            ws.send(mqttPacket(0x82, [0x00, 0x01, ...mqttStr(subscribeTopic), 0x00]));
             resolve({
-              id: ws._veonId,
-              send(obj) {
+              id,
+              send(obj, retain) {
                 if (ws.readyState !== 1) return;
                 const payload = [...new TextEncoder().encode(JSON.stringify(obj))];
-                ws.send(mqttPacket(0x30, [...mqttStr(topic), ...payload]));
+                ws.send(mqttPacket(retain ? 0x31 : 0x30, [...mqttStr(publishTopic), ...payload]));
               },
-              on(fn) { listeners.add(fn); },
+              clear() {
+                if (ws.readyState !== 1) return;
+                ws.send(mqttPacket(0x31, [...mqttStr(publishTopic)]));
+              },
+              on(fn) {
+                listener = fn;
+                for (const msg of queued) fn(msg);
+                queued.length = 0;
+              },
               close() {
                 try { ws.close(); } catch { /* already closed */ }
               },
@@ -189,15 +197,11 @@ function openMqtt(topic) {
             [, offset] = mqttString(body, 0);
             if (type & 0x06) offset += 2;
             const json = new TextDecoder().decode(body.slice(offset));
-            try {
-              const msg = JSON.parse(json);
-              for (const fn of listeners) fn(msg);
-            } catch { /* ignore junk */ }
+            try { give(JSON.parse(json)); } catch { /* ignore junk */ }
           }
         });
       };
-    };
-    connect(BROKERS[index++]);
+    }
   });
 }
 
@@ -263,26 +267,29 @@ export class OnlineRoom {
     if (!(server >= 1 && server <= 10)) throw new Error("Type a server from 1 to 10.");
     this.code = String(server);
     this.elo = readElo();
-    const link = await (openLink || openMqtt)(`veon/s/${server}`);
+    const me = clientId();
+    const topic = `veon/s/${server}`;
+    const link = await (openLink || openMqtt)(`${topic}/+`, `${topic}/${me}`, me);
     if (!this.alive) {
       link.close();
       return;
     }
     this.link = link;
-    this.me = link.id;
+    this.me = link.id || me;
     link.on((msg) => this.hear(msg));
     this.onStatus("waiting", this.code);
     const hello = () => {
-      if (this.alive) link.send({ t: "hi", from: this.me });
+      if (this.alive && !this.conn) link.send({ t: "hi", from: this.me }, true);
     };
     hello();
-    this.hiTimer = setInterval(hello, 1000);
+    this.hiTimer = setInterval(hello, 200);
   }
 
   destroy() {
     this.alive = false;
     clearInterval(this.hiTimer);
     try { this.link?.send({ t: "bye", from: this.me }); } catch { /* already gone */ }
+    try { this.link?.clear?.(); } catch { /* already gone */ }
     try { this.link?.close(); } catch { /* already gone */ }
     this.conn = null;
     this.link = null;

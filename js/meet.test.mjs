@@ -39,8 +39,10 @@ let passed = 0;
 for (let server = 1; server <= 10; server++) {
   const a = room();
   const b = room();
+  const started = Date.now();
   await a.meet(server, open);
   await b.meet(String(server), open);
+  if (Date.now() - started > 2500) throw new Error(`server ${server} took too long`);
   a.send({ t: "pick", charId: "rook" });
   b.send({ t: "pick", charId: "zip" });
   const roles = [a.role, b.role].sort().join(",");

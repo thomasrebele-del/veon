@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=srv";
+import { Game } from "./game.js?v=fast";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=srv";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=fast";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
