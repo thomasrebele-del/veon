@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=fast";
+import { Game } from "./game.js?v=start";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=fast";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, rankOne, readElo, writeElo } from "./net.js?v=start";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -444,8 +444,18 @@ function wireRoom() {
       state.arenaId = msg.arenaId;
       state.stocks = msg.stocks;
       if (state.screen === "online") render();
-    } else if (msg.t === "start") beginNet(msg);
-    else if (msg.t === "in" && state.net) state.net.remoteBox.set(msg.f, msg.b);
+    } else if (msg.t === "start") {
+      if (room.role) state.lobby.role = state.lobby.role || room.role;
+      beginNet(msg);
+      room.send({ t: "ack" });
+    } else if (msg.t === "ack" && room.onAck) room.onAck();
+    else if (msg.t === "in") {
+      if (state.net) state.net.remoteBox.set(msg.f, msg.b);
+      else {
+        state.earlyIn = state.earlyIn || [];
+        state.earlyIn.push(msg);
+      }
+    }
     else if (msg.t === "sum" && game) game.noteSum(msg.f, msg.s);
     else if (msg.t === "pause" && game) game.applyNetPause(msg.v);
     else if (msg.t === "lobby") openLobby();
@@ -463,6 +473,7 @@ function wireRoom() {
 }
 
 function beginNet(msg) {
+  if (state.net) return;
   const localSlot = state.lobby.role === "host" ? 0 : 1;
   state.mode = "online";
   state.arenaId = msg.arenaId;
@@ -482,6 +493,8 @@ function beginNet(msg) {
     sendSum: (f, s) => room?.send({ t: "sum", f, s }),
     sendPause: (v) => room?.send({ t: "pause", v }),
   };
+  for (const early of state.earlyIn || []) state.net.remoteBox.set(early.f, early.b);
+  state.earlyIn = [];
   startFight();
 }
 
@@ -607,7 +620,15 @@ ui.addEventListener("click", (e) => {
   } else if (act === "netfight") {
     if (state.lobby?.role === "host" && state.lobby.theirChar) {
       const msg = { t: "start", arenaId: state.arenaId, stocks: state.stocks, chars: [state.lobby.myChar, state.lobby.theirChar] };
-      room?.send(msg);
+      const push = () => {
+        room?.send(msg);
+        if (state.net) for (const [f, b] of state.net.localBox) room.send({ t: "in", f, b });
+      };
+      push();
+      const again = setInterval(push, 200);
+      const stop = () => clearInterval(again);
+      room.onAck = stop;
+      setTimeout(stop, 2500);
       beginNet(msg);
     }
   } else if (act === "back" || act === "title") {

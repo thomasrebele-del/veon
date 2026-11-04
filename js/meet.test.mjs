@@ -45,6 +45,10 @@ for (let server = 1; server <= 10; server++) {
   if (Date.now() - started > 2500) throw new Error(`server ${server} took too long`);
   a.send({ t: "pick", charId: "rook" });
   b.send({ t: "pick", charId: "zip" });
+  const host = a.role === "host" ? a : b;
+  const guest = host === a ? b : a;
+  host.send({ t: "start", chars: ["rook", "zip"] });
+  if (!guest.seen.some((m) => m.t === "start" && m.chars[0] === "rook")) throw new Error(`server ${server} missed the start`);
   const roles = [a.role, b.role].sort().join(",");
   if (roles === "guest,host" && a.conn?.open && b.conn?.open && a.seen.some((m) => m.charId === "zip") && b.seen.some((m) => m.charId === "rook")) passed += 1;
   else throw new Error(`server ${server} did not pair`);

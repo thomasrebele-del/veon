@@ -235,7 +235,7 @@ export class OnlineRoom {
   }
 
   send(msg) {
-    if (this.conn?.open) this.link?.send({ ...msg, from: this.me });
+    if (this.alive && this.link) this.link.send({ ...msg, from: this.me });
   }
 
   hear(msg) {
@@ -256,8 +256,12 @@ export class OnlineRoom {
       if (!this.them || msg.from === this.them) this.onStatus("closed");
       return;
     }
+    if (msg.t === "start" || !this.them) {
+      this.them = msg.from;
+      if (!this.role) this.role = this.me < msg.from ? "host" : "guest";
+      if (!this.conn) this.conn = { open: true };
+    }
     if (this.them && msg.from !== this.them) return;
-    this.them = this.them || msg.from;
     this.onMessage(msg);
   }
 
@@ -279,7 +283,7 @@ export class OnlineRoom {
     link.on((msg) => this.hear(msg));
     this.onStatus("waiting", this.code);
     const hello = () => {
-      if (this.alive && !this.conn) link.send({ t: "hi", from: this.me }, true);
+      if (this.alive && !this.conn) link.send({ t: "hi", from: this.me });
     };
     hello();
     this.hiTimer = setInterval(hello, 200);
