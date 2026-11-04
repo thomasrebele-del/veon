@@ -1,4 +1,4 @@
-import { OnlineRoom, hostStarts } from "./net.js";
+import { OnlineRoom, hostStarts, lineup } from "./net.js";
 
 function hub(dropStart, dropReady, duplicate) {
   const topics = new Map();
@@ -34,7 +34,7 @@ function hub(dropStart, dropReady, duplicate) {
 }
 
 let passed = 0;
-for (let i = 0; i < 1400; i++) {
+for (let i = 0; i < 17000; i++) {
   const open = hub(i % 17, (i * 3) % 11, i % 5 === 0);
   const a = new OnlineRoom();
   const b = new OnlineRoom();
@@ -55,7 +55,11 @@ for (let i = 0; i < 1400; i++) {
     throw new Error(`trial ${i} both sides could start`);
   }
   if (guest.fight({ chars: ["nope", "nope"] }) !== false) throw new Error(`trial ${i} guest had the button`);
-  const payload = { arenaId: "citadel", stocks: 3, chars: ["rook", "zip"] };
+  const guestPick = i % 3 === 0 ? "" : i % 3 === 1 ? "zip" : "kite";
+  const chars = lineup("rook", guestPick);
+  if (!guestPick && chars[1] !== "rook") throw new Error(`trial ${i} empty guest was not Rook`);
+  if (guestPick && chars[1] !== guestPick) throw new Error(`trial ${i} kept the wrong guest`);
+  const payload = { arenaId: "citadel", stocks: (i % 3) + 1, chars };
   if (host.fight(payload) !== true) throw new Error(`trial ${i} host button did nothing`);
   for (let step = 0; step < 50 && (!host.guestReady || !guest.started); step++) {
     host.pump();
@@ -67,7 +71,7 @@ for (let i = 0; i < 1400; i++) {
   if (!host.started || !guest.started || !host.guestReady || guestOnce !== 1) {
     throw new Error(`trial ${i} did not start both`);
   }
-  if (hostMsg.chars.join() !== "rook,zip" || guestMsg.chars.join() !== "rook,zip") {
+  if (hostMsg.chars.join() !== chars.join() || guestMsg.chars.join() !== chars.join()) {
     throw new Error(`trial ${i} mismatched fighters`);
   }
   host.destroy();
@@ -75,8 +79,8 @@ for (let i = 0; i < 1400; i++) {
   passed += 1;
 }
 
-if (passed !== 1400) {
-  console.error(`${passed}/1400`);
+if (passed !== 17000) {
+  console.error(`${passed}/17000`);
   process.exit(1);
 }
-console.log("1400/1400 passed");
+console.log("17000/17000 passed");

@@ -65,6 +65,11 @@ export function hostStarts(role) {
   return role === "host";
 }
 
+export function lineup(hostChar, guestChar) {
+  const pick = (id) => (id ? String(id) : "rook");
+  return [pick(hostChar), pick(guestChar)];
+}
+
 export function randomCode() {
   const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   let s = "";

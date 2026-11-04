@@ -1,8 +1,8 @@
 import { CHARACTERS, CONTROLLERS, MODES, STAGES, controlLabel, preset } from "./data.js?v=sol";
 import { drawMenuScene, drawPortrait } from "./render.js?v=brawl";
-import { Game } from "./game.js?v=hoststart";
+import { Game } from "./game.js?v=rook";
 import { sfx, unlock } from "./audio.js";
-import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, hostStarts, rankOne, readElo, writeElo } from "./net.js?v=hoststart";
+import { NET_DELAY, OnlineRoom, RANK_ONE, eloDelta, hostStarts, lineup, rankOne, readElo, writeElo } from "./net.js?v=rook";
 
 const canvas = document.getElementById("view");
 const ui = document.getElementById("ui");
@@ -337,7 +337,7 @@ function onlineHtml() {
     ? `<div class="stocks" style="margin-top:8px">${[1, 2, 3, 5].map((n) => `<button class="chip ${n === state.stocks ? "on" : ""}" data-act="stock" data-n="${n}">${n}</button>`).join("")}</div>`
     : "";
   const start = hostStarts(lobby.role)
-    ? `<button class="fight" data-act="netfight" ${lobby.theirChar ? "" : "disabled"}>Fight</button>`
+    ? `<button class="fight" data-act="netfight">Fight</button>`
     : `<p class="lobby-note">Waiting for the host to start.</p>`;
   return `<div class="screen"><div class="sheet">
     <div class="row">
@@ -409,7 +409,7 @@ function wireRoom() {
       state.theirElo = room.theirElo || 1000;
       state.lobby.status = "";
       state.lobby.note = room.role === "host"
-        ? "You are the host. Fight starts the match for both players."
+        ? "You are the host. Fight starts the match even if they are still choosing. No pick yet means Rook."
         : "Waiting for the host to press Fight.";
       room.send({ t: "pick", charId: state.lobby.myChar, elo: room.elo });
       if (state.lobby.role === "host") room.send({ t: "rules", arenaId: state.arenaId, stocks: state.stocks });
@@ -614,7 +614,8 @@ ui.addEventListener("click", (e) => {
     room?.send({ t: "pick", charId: state.lobby.myChar });
     render();
   } else if (act === "netfight") {
-    if (state.lobby?.theirChar) room?.fight({ arenaId: state.arenaId, stocks: state.stocks, chars: [state.lobby.myChar, state.lobby.theirChar] });
+    const chars = lineup(state.lobby?.myChar, state.lobby?.theirChar);
+    room?.fight({ arenaId: state.arenaId, stocks: state.stocks, chars });
   } else if (act === "back" || act === "title") {
     closeRoom();
     state.screen = "title";
