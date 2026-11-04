@@ -251,16 +251,18 @@ export class OnlineRoom {
   }
 
   noteLocal(f, b) {
-    this.localInputs.set(f, b | 0);
-    this.flushInputs();
+    const bits = b | 0;
+    if (this.localInputs.get(f) === bits) return;
+    this.localInputs.set(f, bits);
+    this.send({ t: "in", f, b: bits });
   }
 
   flushInputs() {
-    if (!this.localInputs.size) return;
-    let from = 1;
-    for (const frame of this.localInputs.keys()) if (frame > from) from = frame;
+    const frames = [...this.localInputs.keys()];
+    const last = frames[frames.length - 1];
+    if (last == null) return;
     const list = [];
-    for (let frame = Math.max(1, from - 30); frame <= from; frame++) {
+    for (let frame = Math.max(1, last - 1); frame <= last; frame++) {
       if (this.localInputs.has(frame)) list.push([frame, this.localInputs.get(frame)]);
     }
     if (list.length) this.send({ t: "ins", list });
@@ -271,21 +273,17 @@ export class OnlineRoom {
     this.started = true;
     this.startMsg = { t: "start", n: `${this.me}-1`, ...payload };
     this.pump();
-    this.startTimer = setInterval(() => this.pump(), 50);
+    this.startTimer = setInterval(() => this.pump(), 200);
     this.onStart(this.startMsg);
     return true;
   }
 
   pump() {
     if (!this.alive) return;
-    const inputs = [...this.localInputs.entries()].slice(-30);
-    if (hostStarts(this.role) && this.startMsg && !this.guestReady) {
-      this.startMsg.inputs = inputs;
-      this.send(this.startMsg);
-    }
+    if (hostStarts(this.role) && this.startMsg && !this.guestReady) this.send(this.startMsg);
     if (!hostStarts(this.role) && this.seenStart && this.readyLeft > 0) {
       this.readyLeft -= 1;
-      this.send({ t: "ready", n: this.seenN, inputs });
+      this.send({ t: "ready", n: this.seenN });
     }
     this.flushInputs();
   }
@@ -317,7 +315,7 @@ export class OnlineRoom {
       this.seenN = msg.n;
       if (msg.inputs) this.onInputs(msg.inputs);
       this.pump();
-      if (!this.startTimer) this.startTimer = setInterval(() => this.pump(), 50);
+      if (!this.startTimer) this.startTimer = setInterval(() => this.pump(), 200);
       if (!this.started) {
         this.started = true;
         this.onStart(msg);
